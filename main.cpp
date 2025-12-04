@@ -7,6 +7,7 @@ typedef struct {
     Vector2 pos;
     Vector2 dir;
     Color color;
+    float radius;
 } Point;
 
 void printPoint(Point p) {
@@ -49,38 +50,41 @@ int main() {
 
     SetTargetFPS(60);
 
-    float radius = 50.0;
-
     std::vector<Point> points;
     points.push_back({
         .pos = {.x = 200, .y = 800},
         .dir = {.x = 1, .y = -1},
         .color = YELLOW,
-        });
+        .radius = 50.0,
+	});
 
     points.push_back({
         .pos = {.x = 800, .y = 200},
         .dir = {.x = -1, .y = 1},
         .color = YELLOW,
-        });
+        .radius = 50.0,
+	});
 
     points.push_back({
         .pos = {.x = 1000, .y = 800},
         .dir = {.x = 1, .y = 1},
         .color = YELLOW,
-        });
+        .radius = 50.0,
+	});
 
     points.push_back({
         .pos = {.x = 1100, .y = 200},
         .dir = {.x = 1, .y = 1},
         .color = YELLOW,
-        });
+        .radius = 30.0,
+	});
 
     points.push_back({
         .pos = {.x = 1100, .y = 400},
         .dir = {.x = 1, .y = 1},
         .color = YELLOW,
-        });
+        .radius = 20.0,
+	});
 
     std::vector<std::vector<size_t>> pairs = gen_pairs(points);
 
@@ -91,23 +95,23 @@ int main() {
             point.pos.x += point.dir.x * 10;
             point.pos.y += point.dir.y * 10;
 
-            if (point.pos.x - radius < 0) {
-                point.pos.x = radius;
+            if (point.pos.x - point.radius < 0) {
+                point.pos.x = point.radius;
                 point.dir.x = -point.dir.x;
             }
 
-            if (point.pos.y - radius < 0) {
-                point.pos.y = radius;
+            if (point.pos.y - point.radius < 0) {
+                point.pos.y = point.radius;
                 point.dir.y = -point.dir.y;
             }
 
-            if (point.pos.x + radius > GetScreenWidth()) {
-                point.pos.x = GetScreenWidth() - radius;
+            if (point.pos.x + point.radius > GetScreenWidth()) {
+                point.pos.x = GetScreenWidth() - point.radius;
                 point.dir.x = -point.dir.x;
             }
 
-            if (point.pos.y + radius > GetScreenHeight()) {
-                point.pos.y = GetScreenHeight() - radius;
+            if (point.pos.y + point.radius > GetScreenHeight()) {
+                point.pos.y = GetScreenHeight() - point.radius;
                 point.dir.y = -point.dir.y;
             }
 
@@ -121,7 +125,7 @@ int main() {
             Vector2 delta = Vector2Subtract(p2.pos, p1.pos);
             float dist = Vector2Length(delta);
 
-            if (dist == 0.0f || dist < (2 * radius)) {
+            if (dist == 0.0f || dist < (p1.radius + p2.radius)) {
                 // 1) Normalized vector & tangent vector
                 Vector2 n = Vector2Normalize(delta);
                 Vector2 t = (Vector2){ .x = -n.y, .y = n.x };
@@ -133,23 +137,17 @@ int main() {
                 float v2n = Vector2DotProduct(p2.dir, n);
                 float v2t = Vector2DotProduct(p2.dir, t);
 
-                // 3) swap n and t
-                float v1n_after = v2n;
-                float v2n_after = v1n;
-                float v1t_after = v1t;
-                float v2t_after = v2t;
-
-                // 4) Build new dir
-                Vector2 v1n_vec = Vector2Scale(n, v1n_after);
-                Vector2 v1t_vec = Vector2Scale(t, v1t_after);
-                Vector2 v2n_vec = Vector2Scale(n, v2n_after);
-                Vector2 v2t_vec = Vector2Scale(t, v2t_after);
+                // 3) Build new dir
+                Vector2 v1n_vec = Vector2Scale(n, v2n);
+                Vector2 v1t_vec = Vector2Scale(t, v1t);
+                Vector2 v2n_vec = Vector2Scale(n, v1n);
+                Vector2 v2t_vec = Vector2Scale(t, v2t);
 
                 p1.dir = Vector2Add(v1n_vec, v1t_vec);
                 p2.dir = Vector2Add(v2n_vec, v2t_vec);
 
-                // 5) Separete the balls so they don't overlap
-                float overlap = 0.5f * ((2 * radius) - dist);
+                // 4) Separete the balls so they don't overlap
+                float overlap = 0.5f * ((p1.radius + p2.radius) - dist);
                 p1.pos = Vector2Subtract(p1.pos, Vector2Scale(n, overlap));
                 p2.pos = Vector2Add(p2.pos, Vector2Scale(n, overlap));
 
@@ -163,7 +161,7 @@ int main() {
 
         for (size_t i = 0; i < points.size(); i++) {
             Point point = points[i];
-            DrawCircleV(point.pos, radius, point.color);
+            DrawCircleV(point.pos, point.radius, point.color);
         }
 
         EndDrawing();
