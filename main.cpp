@@ -92,8 +92,8 @@ int main() {
         for (size_t i = 0; i < points.size(); i++) {
             Point point = points[i];
 
-            point.pos.x += point.dir.x * 10;
-            point.pos.y += point.dir.y * 10;
+            point.pos.x += point.dir.x * 7;
+            point.pos.y += point.dir.y * 7;
 
             if (point.pos.x - point.radius < 0) {
                 point.pos.x = point.radius;
@@ -158,6 +158,18 @@ int main() {
 
         BeginDrawing();
         ClearBackground(DARKGRAY);
+
+        for (std::vector<size_t> pair : pairs) {
+            Point p1 = points[pair[0]];
+            Point p2 = points[pair[1]];
+
+            Vector2 delta = Vector2Subtract(p2.pos, p1.pos);
+            float dist = Vector2Length(delta);
+
+            if (dist <= 400) {
+                DrawLineV(p1.pos, p2.pos, LIME);
+            }
+        }
 
         for (size_t i = 0; i < points.size(); i++) {
             Point point = points[i];
