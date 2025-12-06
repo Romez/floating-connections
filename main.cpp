@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <vector>
+#include <string>
+#include <format>
 
 #define HEX_COLOR(c) ((Color) { \
     (unsigned char) (c >> 24), \
@@ -11,6 +13,11 @@
     (unsigned char) ((c >> 8) & 0xff), \
     (unsigned char) (c & 0xff) \
 })
+
+enum NewPointState {
+    IdleNewPoint,
+    AddNewPoint,
+};
 
 typedef struct {
     Vector2 pos;
@@ -47,7 +54,7 @@ std::vector<std::vector<size_t>> gen_pairs(std::vector<Point> points) {
 
 size_t take_until(char* text, char* buf, size_t off, char stop_char) {
     size_t i = 0;
-    while(text[off + i] != stop_char && text[off + i] != '\0') {
+    while (text[off + i] != stop_char && text[off + i] != '\0') {
         buf[i] = text[off + i];
         i++;
     }
@@ -95,7 +102,7 @@ std::vector<Point> read_points(const char* file_path) {
     std::vector<Point> points;
 
     size_t i = 0;
-    while(i < file_size) {
+    while (i < file_size) {
         Point point = {};
 
         char buf[256];
@@ -103,7 +110,7 @@ std::vector<Point> read_points(const char* file_path) {
         // ---- point.pos.x
 
         memset(buf, 0, 256);
-        
+
         i += take_until(points_text, buf, i, ',');
 
         point.pos.x = atof(buf);
@@ -111,34 +118,34 @@ std::vector<Point> read_points(const char* file_path) {
         // ---- point.pos.y
 
         memset(buf, 0, 256);
-        
+
         i += take_until(points_text, buf, i, ',');
         point.pos.y = atof(buf);
 
         // ---- point.dir.x
 
         memset(buf, 0, 256);
-        
+
         i += take_until(points_text, buf, i, ',');
         point.dir.x = atof(buf);
 
         // ---- point.dir.y
 
         memset(buf, 0, 256);
-        
+
         i += take_until(points_text, buf, i, ',');
         point.dir.y = atof(buf);
 
         // ---- point.color
 
         memset(buf, 0, 256);
-        
+
         i += take_until(points_text, buf, i, ',');
         point.color = HEX_COLOR(strtol(buf, 0, 16));
 
         // ---- point.radius
         memset(buf, 0, 256);
-        
+
         i += take_until(points_text, buf, i, '\n');
         point.radius = atof(buf);
 
@@ -151,6 +158,119 @@ std::vector<Point> read_points(const char* file_path) {
     return points;
 }
 
+typedef struct {
+    int state;
+    Point p;
+} NewPoint;
+
+NewPoint new_point_state = { 0 };
+
+void init_point(Vector2 v) {
+    new_point_state.state = AddNewPoint;
+    new_point_state.p.pos = v;
+    new_point_state.p.color = LIME;
+    new_point_state.p.dir.x = 0.1;
+    new_point_state.p.dir.y = 0.1;
+}
+
+std::vector<Point> add_new_point(std::vector<Point> &points) {
+    points.push_back(new_point_state.p);
+    new_point_state.state = IdleNewPoint;
+    return points;
+}
+
+void move_points(std::vector<Point> &points, std::vector<std::vector<size_t>>& pairs) {
+    for (size_t i = 0; i < points.size(); i++) {
+        Point point = points[i];
+
+        point.pos.x += point.dir.x * 6;
+        point.pos.y += point.dir.y * 6;
+
+        if (point.pos.x - point.radius < 0) {
+            point.pos.x = point.radius;
+            point.dir.x = -point.dir.x;
+        }
+
+        if (point.pos.y - point.radius < 0) {
+            point.pos.y = point.radius;
+            point.dir.y = -point.dir.y;
+        }
+
+        if (point.pos.x + point.radius > GetScreenWidth()) {
+            point.pos.x = GetScreenWidth() - point.radius;
+            point.dir.x = -point.dir.x;
+        }
+
+        if (point.pos.y + point.radius > GetScreenHeight()) {
+            point.pos.y = GetScreenHeight() - point.radius;
+            point.dir.y = -point.dir.y;
+        }
+
+        points[i] = point;
+    }
+
+    for (std::vector<size_t> pair : pairs) {
+        Point p1 = points[pair[0]];
+        Point p2 = points[pair[1]];
+
+        Vector2 delta = Vector2Subtract(p2.pos, p1.pos);
+        float dist = Vector2Length(delta);
+
+        if (dist == 0.0f || dist < (p1.radius + p2.radius)) {
+            // 1) Normalized vector & tangent vector
+            Vector2 n = Vector2Normalize(delta);
+            Vector2 t = (Vector2){ .x = -n.y, .y = n.x };
+
+            // 2) Projections of the dir onto the normal n and the tangent t
+            float v1n = Vector2DotProduct(p1.dir, n);
+            float v1t = Vector2DotProduct(p1.dir, t);
+
+            float v2n = Vector2DotProduct(p2.dir, n);
+            float v2t = Vector2DotProduct(p2.dir, t);
+
+            // 3) Build new dir
+            Vector2 v1n_vec = Vector2Scale(n, v2n);
+            Vector2 v1t_vec = Vector2Scale(t, v1t);
+            Vector2 v2n_vec = Vector2Scale(n, v1n);
+            Vector2 v2t_vec = Vector2Scale(t, v2t);
+
+            p1.dir = Vector2Add(v1n_vec, v1t_vec);
+            p2.dir = Vector2Add(v2n_vec, v2t_vec);
+
+            // 4) Separete the balls so they don't overlap
+            float overlap = 0.5f * ((p1.radius + p2.radius) - dist);
+            p1.pos = Vector2Subtract(p1.pos, Vector2Scale(n, overlap));
+            p2.pos = Vector2Add(p2.pos, Vector2Scale(n, overlap));
+
+            points[pair[0]] = p1;
+            points[pair[1]] = p2;
+        }
+    }
+}
+
+void draw_points(const std::vector<Point> &points, const std::vector<std::vector<size_t>> &pairs) {
+    for (std::vector<size_t> pair : pairs) {
+        Point p1 = points[pair[0]];
+        Point p2 = points[pair[1]];
+
+        Vector2 delta = Vector2Subtract(p2.pos, p1.pos);
+        float dist = Vector2Length(delta);
+
+        if (dist <= 400) {
+            DrawLineV(p1.pos, p2.pos, LIME);
+        }
+    }
+
+    for (size_t i = 0; i < points.size(); i++) {
+        Point point = points[i];
+        DrawCircleV(point.pos, point.radius, point.color);
+    }
+
+    if (new_point_state.state == AddNewPoint) {
+        DrawCircleV(new_point_state.p.pos, new_point_state.p.radius, (Color) { 0, 0xff, 0, 0x30 });
+    }
+}
+
 int main() {
     std::vector<Point> points = read_points("./points.txt");
 
@@ -161,100 +281,70 @@ int main() {
     int windowWidth = 1200;
     int windowHeight = 900;
 
+    SetTraceLogLevel(LOG_ALL);
+
     InitWindow(windowWidth, windowHeight, "Floating dots");
+
+    Font font = LoadFontEx("./resources/SourceCodePro-Regular.ttf", 32, 0, 0);
+    if (font.texture.id == 0) {
+        TraceLog(LOG_ERROR, "Failed to load font!");
+    }
 
     SetTargetFPS(60);
 
     while (!WindowShouldClose()) {
-        for (size_t i = 0; i < points.size(); i++) {
-            Point point = points[i];
+        move_points(points, pairs);
 
-            point.pos.x += point.dir.x * 7;
-            point.pos.y += point.dir.y * 7;
-
-            if (point.pos.x - point.radius < 0) {
-                point.pos.x = point.radius;
-                point.dir.x = -point.dir.x;
+        if (IsKeyPressed(KEY_SPACE)) {
+            if (new_point_state.state == IdleNewPoint) {
+                Vector2 pos = GetMousePosition();
+                init_point(pos);
             }
-
-            if (point.pos.y - point.radius < 0) {
-                point.pos.y = point.radius;
-                point.dir.y = -point.dir.y;
+            else if (new_point_state.state == AddNewPoint) {
+                if (new_point_state.p.radius > 3) {
+                    points = add_new_point(points);
+                    pairs = gen_pairs(points);
+                }
             }
-
-            if (point.pos.x + point.radius > GetScreenWidth()) {
-                point.pos.x = GetScreenWidth() - point.radius;
-                point.dir.x = -point.dir.x;
-            }
-
-            if (point.pos.y + point.radius > GetScreenHeight()) {
-                point.pos.y = GetScreenHeight() - point.radius;
-                point.dir.y = -point.dir.y;
-            }
-
-            points[i] = point;
         }
 
-        for (std::vector<size_t> pair : pairs) {
-            Point p1 = points[pair[0]];
-            Point p2 = points[pair[1]];
+        if (new_point_state.state == AddNewPoint) {
+            Vector2 pos = GetMousePosition();
+            float radius = Vector2Distance(new_point_state.p.pos, pos);
+            new_point_state.p.radius = radius;
+        }
 
-            Vector2 delta = Vector2Subtract(p2.pos, p1.pos);
-            float dist = Vector2Length(delta);
-
-            if (dist == 0.0f || dist < (p1.radius + p2.radius)) {
-                // 1) Normalized vector & tangent vector
-                Vector2 n = Vector2Normalize(delta);
-                Vector2 t = (Vector2){ .x = -n.y, .y = n.x };
-
-                // 2) Projections of the dir onto the normal n and the tangent t
-                float v1n = Vector2DotProduct(p1.dir, n);
-                float v1t = Vector2DotProduct(p1.dir, t);
-
-                float v2n = Vector2DotProduct(p2.dir, n);
-                float v2t = Vector2DotProduct(p2.dir, t);
-
-                // 3) Build new dir
-                Vector2 v1n_vec = Vector2Scale(n, v2n);
-                Vector2 v1t_vec = Vector2Scale(t, v1t);
-                Vector2 v2n_vec = Vector2Scale(n, v1n);
-                Vector2 v2t_vec = Vector2Scale(t, v2t);
-
-                p1.dir = Vector2Add(v1n_vec, v1t_vec);
-                p2.dir = Vector2Add(v2n_vec, v2t_vec);
-
-                // 4) Separete the balls so they don't overlap
-                float overlap = 0.5f * ((p1.radius + p2.radius) - dist);
-                p1.pos = Vector2Subtract(p1.pos, Vector2Scale(n, overlap));
-                p2.pos = Vector2Add(p2.pos, Vector2Scale(n, overlap));
-
-                points[pair[0]] = p1;
-                points[pair[1]] = p2;
+        if (IsKeyPressed(KEY_ESCAPE)) {
+            if (new_point_state.state == AddNewPoint) {
+                new_point_state.state = IdleNewPoint;
             }
         }
 
         BeginDrawing();
         ClearBackground(DARKGRAY);
 
-        for (std::vector<size_t> pair : pairs) {
-            Point p1 = points[pair[0]];
-            Point p2 = points[pair[1]];
+        draw_points(points, pairs);
 
-            Vector2 delta = Vector2Subtract(p2.pos, p1.pos);
-            float dist = Vector2Length(delta);
+        {
+            std::string countText = "Count: " + std::to_string(points.size());
+            
+            DrawTextEx(font, countText.c_str(), (Vector2) { 10, 10 }, (float)font.baseSize, 2, LIME);
 
-            if (dist <= 400) {
-                DrawLineV(p1.pos, p2.pos, LIME);
+            for (size_t i = 0; i < points.size(); i++) {
+                Point p = points[i];
+                std::string pointText = std::format("({:.2f} ; {:.2f})", p.pos.x, p.pos.y);
+                Vector2 textPos = (Vector2) {
+                    .x = 10, 
+                    .y = (float)(10.0 + font.baseSize) + (float)(font.baseSize * i),
+                };
+                DrawTextEx(font, pointText.c_str(), textPos, (float)font.baseSize, 2, LIME);
             }
-        }
-
-        for (size_t i = 0; i < points.size(); i++) {
-            Point point = points[i];
-            DrawCircleV(point.pos, point.radius, point.color);
         }
 
         EndDrawing();
     }
+
+    UnloadFont(font);
 
     return 0;
 }
