@@ -14,6 +14,8 @@
     (unsigned char) (c & 0xff) \
 })
 
+#define CONNECTION_DIST 400
+
 enum NewPointState {
     IdleNewPoint,
     AddNewPoint,
@@ -25,6 +27,8 @@ typedef struct {
     Color color;
     float radius;
 } Point;
+
+Font font;
 
 void printPoint(Point p) {
     printf("(%02f;%02f)\n", p.dir.x, p.dir.y);
@@ -248,7 +252,7 @@ void move_points(std::vector<Point> &points, std::vector<std::vector<size_t>>& p
     }
 }
 
-void draw_points(const std::vector<Point> &points, const std::vector<std::vector<size_t>> &pairs) {
+void drawPoints(const std::vector<Point> &points, const std::vector<std::vector<size_t>> &pairs) {
     for (std::vector<size_t> pair : pairs) {
         Point p1 = points[pair[0]];
         Point p2 = points[pair[1]];
@@ -256,7 +260,7 @@ void draw_points(const std::vector<Point> &points, const std::vector<std::vector
         Vector2 delta = Vector2Subtract(p2.pos, p1.pos);
         float dist = Vector2Length(delta);
 
-        if (dist <= 400) {
+        if (dist <= CONNECTION_DIST) {
             DrawLineV(p1.pos, p2.pos, LIME);
         }
     }
@@ -271,8 +275,32 @@ void draw_points(const std::vector<Point> &points, const std::vector<std::vector
     }
 }
 
+void drawInfo(std::vector<Point>& points) {
+    Vector2 textPos = {2, 4};
+
+    {
+        std::string text = std::format("Screen w={}, h={}", GetScreenWidth(), GetScreenHeight());
+        DrawTextEx(font, text.c_str(), textPos, (float)font.baseSize, 2, LIME);
+        textPos.y += font.baseSize;
+    }
+
+    std::string countText = "Count: " + std::to_string(points.size());
+    
+    DrawTextEx(font, countText.c_str(), textPos, (float)font.baseSize, 2, LIME);
+
+    for (size_t i = 0; i < points.size(); i++) {
+        Point p = points[i];
+
+        textPos.y += font.baseSize;
+        
+        std::string pointText = std::format("({:d} ; {:d})", (int)p.pos.x, (int)p.pos.y);
+
+        DrawTextEx(font, pointText.c_str(), textPos, (float)font.baseSize, 2, LIME);
+    }
+}
+
 int main() {
-    std::vector<Point> points = read_points("./points.txt");
+    std::vector<Point> points = read_points("resources/points.txt");
 
     std::vector<std::vector<size_t>> pairs = gen_pairs(points);
 
@@ -281,11 +309,17 @@ int main() {
     int windowWidth = 1200;
     int windowHeight = 900;
 
-    SetTraceLogLevel(LOG_ALL);
+    SetTraceLogLevel(LOG_ERROR);
 
     InitWindow(windowWidth, windowHeight, "Floating dots");
 
-    Font font = LoadFontEx("./resources/SourceCodePro-Regular.ttf", 32, 0, 0);
+    if (FileExists("resources/font.ttf")) {
+        TraceLog(LOG_INFO, "font exists");
+    } else {
+        TraceLog(LOG_ERROR, "font does not exist");
+    }
+
+    font = LoadFontEx("resources/font.ttf", 14, 0, 0);
     if (font.texture.id == 0) {
         TraceLog(LOG_ERROR, "Failed to load font!");
     }
@@ -323,23 +357,10 @@ int main() {
         BeginDrawing();
         ClearBackground(DARKGRAY);
 
-        draw_points(points, pairs);
+        drawPoints(points, pairs);
 
-        {
-            std::string countText = "Count: " + std::to_string(points.size());
-            
-            DrawTextEx(font, countText.c_str(), (Vector2) { 10, 10 }, (float)font.baseSize, 2, LIME);
-
-            for (size_t i = 0; i < points.size(); i++) {
-                Point p = points[i];
-                std::string pointText = std::format("({:.2f} ; {:.2f})", p.pos.x, p.pos.y);
-                Vector2 textPos = (Vector2) {
-                    .x = 10, 
-                    .y = (float)(10.0 + font.baseSize) + (float)(font.baseSize * i),
-                };
-                DrawTextEx(font, pointText.c_str(), textPos, (float)font.baseSize, 2, LIME);
-            }
-        }
+        // Draw Info
+        drawInfo(points);
 
         EndDrawing();
     }
