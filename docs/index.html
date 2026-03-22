@@ -1,1 +1,42 @@
-<!doctypehtml><html lang=en><head><meta charset=utf-8><meta content="width=device-width,initial-scale=1"name=viewport><title>raylib web game</title><style>body,html{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}canvas{display:block;border:0;background:#000}</style></head><body><canvas id=canvas oncontextmenu=event.preventDefault() tabindex=-1></canvas><pre id=output></pre><script>var Module={print:function(){const n=document.getElementById("output");return function(t){console.log(t),n&&(n.textContent+=t+"\n")}}(),canvas:document.getElementById("canvas")}</script><script async src=index.js></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>raylib web game</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: black;
+    }
+    canvas {
+      display: block;
+      border: 0;
+      background: black;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+  <pre id="output"></pre>
+
+  <script>
+    var Module = {
+      print: (function() {
+        const element = document.getElementById('output');
+        return function(text) {
+          console.log(text);
+          if (element) element.textContent += text + "\n";
+        };
+      })(),
+      canvas: document.getElementById('canvas')
+    };
+  </script>
+
+  <script async type="text/javascript" src="index.js"></script>
+</body>
+</html>
