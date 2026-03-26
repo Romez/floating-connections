@@ -162,31 +162,42 @@ void movePoints(std::vector<Point> &points, std::vector<std::vector<size_t>>& pa
         Vector2 delta = Vector2Subtract(p2.pos, p1.pos);
         float dist = Vector2Length(delta);
 
-        if (dist == 0.0f || dist < (p1.radius + p2.radius)) {
-            // 1) Normalized vector & tangent vector
-            Vector2 n = Vector2Normalize(delta);
-            Vector2 t = (Vector2){ .x = -n.y, .y = n.x };
+        if (dist == 0.0f) {
+            delta = (Vector2){0.001f, 0.0f};
+            dist = 0.001f;
+        }
 
-            // 2) Projections of the dir onto the normal n and the tangent t
+        if (dist < (p1.radius + p2.radius)) {
+            Vector2 n = Vector2Scale(delta, 1.0f / dist);
+            Vector2 t = (Vector2){-n.y, n.x};
+
+            float m1 = p1.radius * p1.radius;
+            float m2 = p2.radius * p2.radius;
+
             float v1n = Vector2DotProduct(p1.dir, n);
             float v1t = Vector2DotProduct(p1.dir, t);
-
             float v2n = Vector2DotProduct(p2.dir, n);
             float v2t = Vector2DotProduct(p2.dir, t);
 
-            // 3) Build new dir
-            Vector2 v1n_vec = Vector2Scale(n, v2n);
-            Vector2 v1t_vec = Vector2Scale(t, v1t);
-            Vector2 v2n_vec = Vector2Scale(n, v1n);
-            Vector2 v2t_vec = Vector2Scale(t, v2t);
+            Vector2 relVel = Vector2Subtract(p2.dir, p1.dir);
+            if (Vector2DotProduct(relVel, n) < 0.0f) {
+                float v1n_new = (v1n * (m1 - m2) + 2.0f * m2 * v2n) / (m1 + m2);
+                float v2n_new = (v2n * (m2 - m1) + 2.0f * m1 * v1n) / (m1 + m2);
 
-            p1.dir = Vector2Add(v1n_vec, v1t_vec);
-            p2.dir = Vector2Add(v2n_vec, v2t_vec);
+                Vector2 v1n_vec = Vector2Scale(n, v1n_new);
+                Vector2 v1t_vec = Vector2Scale(t, v1t);
+                Vector2 v2n_vec = Vector2Scale(n, v2n_new);
+                Vector2 v2t_vec = Vector2Scale(t, v2t);
 
-            // 4) Separete the balls so they don't overlap
-            float overlap = 0.5f * ((p1.radius + p2.radius) - dist);
-            p1.pos = Vector2Subtract(p1.pos, Vector2Scale(n, overlap));
-            p2.pos = Vector2Add(p2.pos, Vector2Scale(n, overlap));
+                p1.dir = Vector2Add(v1n_vec, v1t_vec);
+                p2.dir = Vector2Add(v2n_vec, v2t_vec);
+            }
+
+            float overlap = (p1.radius + p2.radius) - dist;
+            float totalMass = m1 + m2;
+
+            p1.pos = Vector2Subtract(p1.pos, Vector2Scale(n, overlap * (m2 / totalMass)));
+            p2.pos = Vector2Add(p2.pos, Vector2Scale(n, overlap * (m1 / totalMass)));
 
             points[pair[0]] = p1;
             points[pair[1]] = p2;
